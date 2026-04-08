@@ -62,6 +62,253 @@ Access the dashboard at http://localhost:8000
                           └──────────────┘
 ```
 
+## Design Decisions
+
+### 1. Database Schema Design
+
+**Two-Table Normalized Structure**
+
+We chose a normalized two-table design for clarity and efficient querying:
+
+- **`archive_runs`**: One row per execution, storing aggregate metrics
+  - **Rationale**: Enables quick summary queries without scanning all events
+  - **Trade-off**: Requires updating both tables, but simplifies analytics
+  - **Status field**: VARCHAR(30) to accommodate "completed_with_errors"
+
+- **`archive_events`**: One row per file operation
+  - **Rationale**: Provides complete audit trail for debugging and compliance
+  - **Trade-off**: Can grow large, but indexed on `run_id` for fast lookups
+  - **Reason field**: TEXT type allows detailed error messages
+
+**Alternative Considered**: Single table with JSON column for events
+- Rejected because: Harder to query, no foreign key constraints, poor indexing
+
+### 2. File Handling Strategy
+
+**Move vs Copy**
+
+We use `shutil.move()` instead of copy-and-delete:
+- **Rationale**: Atomic operation on same filesystem, faster, less disk usage
+- **Trade-off**: Files are removed from source (intentional for archiving)
+- **Safety**: Check for duplicates before moving to prevent data loss
+
+**Directory Structure**
+
+Archive layout: `ARCHIVE_DIR/groupname/username/filename`
+- **Rationale**: Preserves ownership context, prevents name collisions
+- **Trade-off**: Nested structure, but improves organization at scale
+- **Consideration**: Easy to restore files to original owner
+
+**Duplicate Handling**
+
+Skip files that already exist at destination:
+- **Rationale**: Prevents overwriting potentially different content
+- **Trade-off**: No automatic versioning, but safer default behavior
+- **Future**: Could implement hash-based deduplication or versioning
+
+### 3. API Architecture
+
+**FastAPI Framework**
+
+Chosen over Flask/Django for:
+- **Performance**: Async support, faster response times
+- **Type Safety**: Pydantic models provide automatic validation
+- **Documentation**: Auto-generated OpenAPI/Swagger docs
+- **Modern**: Native async/await support for database operations
+
+**RESTful Endpoint Design**
+
+- `/runs` - Collection resource (LIST)
+- `/runs/{id}` - Single resource (GET with nested events)
+- `/runs/{id}/files` - Sub-resource with filtering
+- `/stats` - Computed resource (denormalized for performance)
+
+**Rationale**: Follows REST conventions, intuitive for clients, cacheable
+
+**Database Connection Strategy**
+
+Direct `psycopg2` connections (not connection pool):
+- **Rationale**: Simple for exam, adequate for low-medium traffic
+- **Production**: Would use `psycopg2.pool` or SQLAlchemy with connection pooling
+- **Trade-off**: Connection overhead per request, but avoids complexity
+
+### 4. Error Handling & Robustness
+
+**Three-State Status Model**
+
+Files can be: `moved`, `skipped`, or `error`
+- **Rationale**: Clear distinction between success, intentional skip, and failure
+- **Benefit**: Enables filtering queries like "show me all errors"
+- **Tracking**: Each state has reason field for debugging
+
+**Run Status**
+
+Runs can be: `running`, `completed`, or `completed_with_errors`
+- **Rationale**: Partial success is different from complete failure
+- **Benefit**: Dashboard can highlight problematic runs
+- **Decision**: Even 1 error marks run as `completed_with_errors`
+
+**Graceful Degradation**
+
+- Missing users → Log warning, continue with other users
+- Missing home dirs → Skip user, continue with group
+- Database errors → Fail fast with clear error message
+- Permission errors → Log per-file, continue with other files
+
+**Rationale**: Maximize successful operations, provide clear feedback
+
+### 5. Testing Strategy
+
+**17-Test Suite Structure**
+
+1. **Database Tests (7)**: Schema, CRUD, connections
+2. **Archive Logic Tests (4)**: Group validation, error handling
+3. **Integration Tests (3)**: File operations, permissions
+4. **Edge Cases (3)**: Special characters, empty dirs, duplicates
+
+**Mocking Strategy**
+
+- Mock system calls (`grp.getgrnam`, `pwd.getpwnam`) for predictability
+- Real database for integration tests (testenv provides isolation)
+- **Rationale**: Balance between speed and confidence
+
+**Alternative Considered**: All-mocked unit tests
+- Rejected because: Wouldn't catch database schema issues or SQL errors
+
+### 6. Packaging & Deployment
+
+**Debian Package Format**
+
+Chose `.deb` over alternatives:
+- **Rationale**: Native Linux package manager integration
+- **Benefits**: Dependency resolution, clean uninstall, standard format
+- **Trade-off**: Platform-specific, but appropriate for target (Linux servers)
+
+**Package Structure**
+
+```
+/usr/local/bin/archive-files  # Standard location for custom tools
+```
+
+- **Rationale**: Follows FHS, doesn't conflict with system packages
+- **Dependencies**: `python3`, `python3-psycopg2` declared in control file
+- **Alternative**: Could use Python wheel, but .deb integrates better with apt
+
+**Installation Strategy**
+
+No post-install scripts:
+- **Rationale**: Keep it simple, minimal surface area for errors
+- **Trade-off**: No automatic database setup, but documented in README
+- **Decision**: Admin control over database initialization is better
+
+### 7. LDAP Integration (Part 2)
+
+**ldap3 Library**
+
+Chose `ldap3` over `python-ldap`:
+- **Rationale**: Pure Python (no C dependencies), better documentation
+- **Benefits**: Easier installation, cross-platform, more Pythonic API
+- **Trade-off**: Slightly slower, but negligible for query workload
+
+**Query Strategy**
+
+Two-step process:
+1. Query group for members (single LDAP search)
+2. Query each member for details (N searches)
+
+**Rationale**: Simple, correct, readable
+**Alternative**: Single search with join - more complex, harder to debug
+**Trade-off**: N+1 queries, but groups are small (~10 members typical)
+
+### 8. Containerization
+
+**Docker Compose Architecture**
+
+Three services in Part 1:
+- **postgres**: Data persistence with health check
+- **pgadmin**: Development convenience (not production)
+- **testenv**: Isolated test environment with seeded data
+
+**Health Checks**
+
+- PostgreSQL: `pg_isready` before dependent services start
+- OpenLDAP: `ldapsearch` with retry logic (slow startup)
+- **Rationale**: Prevents race conditions, ensures clean startup
+
+**Volume Strategy**
+
+- Named volume `pgdata`: Persist database across container restarts
+- Bind mount `./`: Share code between host and containers
+- **Rationale**: Development convenience + data persistence
+
+**testenv Design**
+
+Runs setup script once, then `tail -f /dev/null`:
+- **Rationale**: Keep container alive for interactive testing
+- **Alternative**: Run script on every start - causes duplicate user errors
+- **Solution**: Idempotency marker `/tmp/.setup-done`
+
+### 9. Dashboard Implementation
+
+**Server-Side Rendering**
+
+Single HTML file with embedded CSS/JS:
+- **Rationale**: No build step, no framework complexity, works immediately
+- **Benefits**: Fast to implement, easy to debug, no dependencies
+- **Trade-off**: Not scalable to complex UIs, but sufficient for monitoring dashboard
+
+**Auto-Refresh**
+
+10-second polling with `setInterval`:
+- **Rationale**: Simple, works everywhere, no WebSocket complexity
+- **Alternative**: Server-Sent Events (SSE) - more efficient but harder
+- **Decision**: For exam context, polling is adequate
+
+**Styling**
+
+Inline CSS with cards and tables:
+- **Rationale**: Professional appearance without framework overhead
+- **Benefits**: Responsive, readable, modern look
+- **Trade-off**: Limited reusability, but single-page app
+
+### 10. Configuration Management
+
+**Environment Variables**
+
+All config via env vars (12-factor app principle):
+- **Rationale**: Easy to override, works in containers, secure
+- **Benefits**: No hardcoded credentials, environment-specific config
+- **Pattern**: `os.getenv("VAR", "default")` for fallback
+
+**Defaults Chosen**
+
+- `DB_HOST=postgres`: Container DNS name (works in Docker Compose)
+- `ARCHIVE_DIR=/tmp/archive`: Safe default, no permissions needed
+- **Rationale**: "Works out of box" in testenv, easy to override for production
+
+### Key Trade-offs Summary
+
+| Decision | Benefit | Trade-off | Accepted Because |
+|----------|---------|-----------|------------------|
+| PostgreSQL | ACID, relations | Setup overhead | Data integrity critical |
+| FastAPI | Speed, modern | Learning curve | Performance + docs |
+| Move files | Fast, atomic | Destructive | Archiving intent |
+| Normalized schema | Clean, efficient | Two tables | Worth the clarity |
+| Two-step LDAP | Simple, clear | N+1 queries | Small groups |
+| .deb package | System integration | Platform-specific | Target is Linux |
+| Inline CSS | Fast to write | Not reusable | Single page |
+
+### Future Improvements (Out of Scope)
+
+- Connection pooling for API
+- Batch file operations for large runs
+- Hash-based deduplication
+- WebSocket for real-time dashboard updates
+- Prometheus metrics export
+- Rate limiting on API endpoints
+- LDAP connection pooling
+- Automated backup procedures
+
 ### API Endpoints
 
 | Endpoint | Method | Description |
