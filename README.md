@@ -369,14 +369,14 @@ docker compose ps openldap
 
 ## License
 
-Educational project for DewCIS practical exam.
+MIT License. Test project for DewCIS practical exam.
 
 ## Author
 
-John Mburu <john@example.com>
+John Mburu <johnnkonge2020@gmail.com>
 
 ---
 
 **Assessment Date**: April 8, 2026
-**Duration**: 3 hours (2.5h Part 1, 0.5h Part 2)
+**Duration**: 2 hours (1.5h Part 1, 0.5h Part 2)
 **Status**: ✅ Complete
