@@ -7,8 +7,8 @@ import os
 app = FastAPI(title="File Archive API")
 
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "postgres"),
-    "port": os.getenv("DB_PORT", "5432"),
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": os.getenv("DB_PORT", "5433"),
     "dbname": os.getenv("DB_NAME", "archivedb"),
     "user": os.getenv("DB_USER", "archiveuser"),
     "password": os.getenv("DB_PASSWORD", "archivepass"),
