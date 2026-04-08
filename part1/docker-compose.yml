@@ -29,7 +29,13 @@ services:
 
   testenv:
     image: debian:bookworm-slim
-    command: bash /workspace/setup.sh
+    command: >
+      bash -c "
+      if [ ! -f /tmp/.setup-done ]; then
+        bash /workspace/setup.sh && touch /tmp/.setup-done;
+      fi;
+      tail -f /dev/null
+      "
     volumes:
       - ./:/workspace
     working_dir: /workspace

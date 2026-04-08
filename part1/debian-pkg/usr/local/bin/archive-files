@@ -9,7 +9,7 @@ import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-#config
+# ─── Config ───────────────────────────────────────────────────────────────────
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "postgres"),
     "port": os.getenv("DB_PORT", "5432"),

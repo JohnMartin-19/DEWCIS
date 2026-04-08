@@ -142,5 +142,3 @@ echo "          eve, frank     -> finance"
 echo "          grace          -> hr"
 echo " Files:   ${FILE_COUNT} files across all home dirs"
 echo "========================================"
-
-tail -f /dev/null
