@@ -12,13 +12,13 @@ This project consists of two parts:
 
 ### Features
 
-- ✅ CLI script to archive files for Linux group members
-- ✅ PostgreSQL database for tracking runs and events
-- ✅ FastAPI REST API with 5 endpoints
-- ✅ Real-time web dashboard
-- ✅ Debian package (.deb) for easy deployment
-- ✅ Comprehensive unit tests (17 tests)
-- ✅ Docker Compose setup with test environment
+- CLI script to archive files for Linux group members
+- PostgreSQL database for tracking runs and events
+- FastAPI REST API with 5 endpoints
+- Real-time web dashboard
+-  Debian package (.deb) for easy deployment
+-  Comprehensive unit tests (17 tests)
+-  Docker Compose setup with test environment
 
 ### Quick Start
 
@@ -393,10 +393,10 @@ psql -h localhost -p 5433 -U archiveuser -d archivedb
 
 ### Features
 
-- ✅ Query LDAP directory for group members
-- ✅ Display member details (uid, name, home directory)
-- ✅ Docker Compose setup with OpenLDAP
-- ✅ Pre-seeded test data
+-  Query LDAP directory for group members
+-  Display member details (uid, name, home directory)
+-  Docker Compose setup with OpenLDAP
+-  Pre-seeded test data
 
 ### Quick Start
 
@@ -552,20 +552,20 @@ docker compose ps openldap
 ## Testing Checklist
 
 ### Part 1
-- ✅ Docker containers running (postgres, pgadmin, testenv)
-- ✅ Debian package builds without errors
-- ✅ Package installs successfully
-- ✅ Archive script runs and moves files
-- ✅ Database records are created
-- ✅ FastAPI server starts
-- ✅ Dashboard loads and shows data
-- ✅ All 17 unit tests pass
+-  Docker containers running (postgres, pgadmin, testenv)
+-  Debian package builds without errors
+-  Package installs successfully
+-  Archive script runs and moves files
+-  Database records are created
+-  FastAPI server starts
+-  Dashboard loads and shows data
+-  All 17 unit tests pass
 
 ### Part 2
-- ✅ Docker containers running (openldap, ldap-admin)
-- ✅ LDAP server is healthy
-- ✅ Script queries all groups successfully
-- ✅ Member details display correctly
+-  Docker containers running (openldap, ldap-admin)
+-  LDAP server is healthy
+-  Script queries all groups successfully
+-  Member details display correctly
 
 ## Performance
 
@@ -626,4 +626,4 @@ John Mburu <johnnkonge2020@gmail.com>
 
 **Assessment Date**: April 8, 2026
 **Duration**: 2 hours (1.5h Part 1, 0.5h Part 2)
-**Status**: ✅ Complete
+**Status**:  Complete
